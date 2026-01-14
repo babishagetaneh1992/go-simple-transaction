@@ -7,6 +7,6 @@ type AccountRepository interface {
 	GetByID(ctx context.Context, id int64) (*Account, error)
 
 	//used only inside DB transactions
-	UpdateBalance(ctx context.Context, id int64, newBalance int64) error
+	//UpdateBalance(ctx context.Context, id int64, newBalance int64) error
 	LockByID(ctx context.Context, id int64) (*Account, error)
 }

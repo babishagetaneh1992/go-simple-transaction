@@ -4,16 +4,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	//"transaction/internal/transaction"
 
 	"github.com/go-chi/chi"
 )
 
 type AccountHandler struct {
 	repo AccountRepository
+	balanceHandler http.HandlerFunc
 }
 
-func NewAccountHandler(repo AccountRepository) *AccountHandler {
-	return &AccountHandler{repo: repo}
+func NewAccountHandler(repo AccountRepository, balanceHandler http.HandlerFunc) *AccountHandler {
+	return &AccountHandler{repo: repo, balanceHandler: balanceHandler}
 }
 
 func (h *AccountHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -63,5 +65,6 @@ func (h *AccountHandler) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/", h.Create)
 	r.Get("/{id}", h.Get)
+	r.Get("/{id}/balance", h.balanceHandler)
 	return  r
 }

@@ -29,9 +29,11 @@ func main() {
 	transactionRepo := transaction.NewPostgresRepo(db)
 
 	transactionService := transaction.NewTransactionService(db, accountRepo, transactionRepo)
-
-	accountHandler := account.NewAccountHandler(accountRepo)
+	//transactionHandler := transaction.NewTransactionHandler(transactionService)
 	transactionHandler := transaction.NewTransactionHandler(transactionService)
+
+	accountHandler := account.NewAccountHandler(accountRepo, transactionHandler.Balance)
+	
 
 	router := httpinfra.NewRouter(
 		accountHandler.Routes(),

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	//"runtime/debug"
 	"transaction/internal/account"
 )
 
@@ -41,17 +42,24 @@ func (s *Service) Deposit(ctx context.Context, accountID int64, amount int64, no
 	accountRepo := account.NewPostgresRepository(tx)
 	transactionRepo := NewPostgresRepo(tx)
 
-	acc, err := accountRepo.LockByID(ctx, accountID)
+	_, err = accountRepo.LockByID(ctx, accountID)
 	if err != nil {
 		return err
 	}
 
-	newBalance := acc.Balance + amount
+	// newBalance := acc.Balance + amount
 
-	if err := accountRepo.UpdateBalance(ctx, acc.ID, newBalance); err != nil {
-		return err
-	}
+	// if err := accountRepo.UpdateBalance(ctx, acc.ID, newBalance); err != nil {
+	// 	return err
+	// }
+    
+	// balance, err := transactionRepo.BalanceByAccount(ctx, accountID)
+	// if balance < amount {
+	// 	return  errors.New("insufficient funds")
+	// }
 
+
+	// write ledger entry
 	if err := transactionRepo.Create(ctx, &Transaction{
 		AccountID: accountID,
 		Amount:    amount,
@@ -84,16 +92,26 @@ func (s *Service) Withdraw(ctx context.Context, accountID int64, amount int64, n
 		return err
 	}
 
-	if acc.Balance < amount {
+
+	// newBalance := acc.Balance - amount
+
+	// if err := accountRepo.UpdateBalance(ctx, acc.ID, newBalance); err != nil {
+	// 	return err
+	// }
+
+	// compute balance inside Tx
+    balance, err := transactionRepo.BalanceByAccount(ctx, accountID)
+	if err != nil {
+		return  err
+	}
+
+  
+	if balance < amount {
 		return errors.New("insufficient funds")
 	}
 
-	newBalance := acc.Balance - amount
 
-	if err := accountRepo.UpdateBalance(ctx, acc.ID, newBalance); err != nil {
-		return err
-	}
-
+	// write ledger entry
 	if err := transactionRepo.Create(ctx, &Transaction{
 		AccountID: acc.ID,
 		Type:      TypeWithdraw,
@@ -124,6 +142,12 @@ func (s *Service) Transfer(ctx context.Context, fromAccountID int64, toAccountID
 	accountRepo := account.NewPostgresRepository(tx)
 	transactionRepo := NewPostgresRepo(tx)
 
+	// // Lock accounts in ID order (deadlock prevention)
+	// first, second := fromAccountID, toAccountID
+	// if first > second {
+	// 	first, second = second, first
+	// }
+
 	fromAcc, err := accountRepo.LockByID(ctx, fromAccountID)
 	if err != nil {
 		return err
@@ -134,18 +158,29 @@ func (s *Service) Transfer(ctx context.Context, fromAccountID int64, toAccountID
 		return err
 	}
 
-	if fromAcc.Balance < amount {
-		return errors.New("insufficient funds")
+	// if fromAcc.Balance < amount {
+	// 	return errors.New("insufficient funds")
+	// }
+
+	// check balance
+	balance, err := transactionRepo.BalanceByAccount(ctx, fromAccountID)
+	if err != nil {
+		return  err
 	}
 
-	if err := accountRepo.UpdateBalance(ctx, fromAcc.ID, fromAcc.Balance-amount); err != nil {
-		return err
+	// if err := accountRepo.UpdateBalance(ctx, fromAcc.ID, fromAcc.Balance-amount); err != nil {
+	// 	return err
+	// }
+
+	if balance < amount {
+		return errors.New("Insufficient funds")
 	}
 
-	if err := accountRepo.UpdateBalance(ctx, toAcc.ID, toAcc.Balance+amount); err != nil {
-		return err
-	}
+	// if err := accountRepo.UpdateBalance(ctx, toAcc.ID, toAcc.Balance+amount); err != nil {
+	// 	return err
+	// }
 
+	// debit
 	if err := transactionRepo.Create(ctx, &Transaction{
 		AccountID: fromAcc.ID,
 		Type:      TypeTransferOut,
@@ -155,6 +190,7 @@ func (s *Service) Transfer(ctx context.Context, fromAccountID int64, toAccountID
 		return err
 	}
 
+	//credit
 	if err := transactionRepo.Create(ctx, &Transaction{
 		AccountID: toAcc.ID,
 		Type:      TypeTransferIn,
@@ -175,3 +211,19 @@ func (s * Service) History(ctx context.Context, accountID int64 )([]Transaction,
 
 	return s.transactionRepo.ListByAccount(ctx, accountID)
 }
+
+
+func (s *Service) Balance(ctx context.Context, accountID int64) (int64, error) {
+
+	_, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return  0, err
+	}
+    
+	return  s.transactionRepo.BalanceByAccount(ctx, accountID)
+}
+
+
+
+
+

@@ -45,14 +45,14 @@ func TestDeposit_IncreasesBalance(t *testing.T) {
         t.Fatalf("❌ Deposit failed for account %s: %v", acc.Name, err)
     }
 
-    updated, err := accountRepo.GetByID(ctx, acc.ID)
-    if err != nil {
-        t.Fatalf("❌ Could not retrieve updated account %s: %v", acc.Name, err)
-    }
+  balance, err := service.Balance(ctx, acc.ID)
+  if err != nil {
+    t.Fatal(err)
+  }
 
-    if updated.Balance != 10_000 {
-        t.Fatalf("❌ Balance mismatch for %s: expected 10000, got %d", acc.Name, updated.Balance)
-    }
+  if balance != 10_000 {
+    t.Fatalf("expected balance 10000, got %d", balance)
+  }
 
     t.Logf("✅ Deposit test passed for %s", acc.Name)
 }
@@ -70,11 +70,8 @@ func TestWithdraw_InsufficientFunds(t *testing.T) {
         t.Fatalf("❌ Failed to create account: %v", err)
     }
 
-    // Ensure starting balance is zero
-    err = accountRepo.UpdateBalance(ctx, acc.ID, 0)
-    if err != nil {
-        t.Fatalf("❌ Could not set balance for %s: %v", acc.Name, err)
-    }
+    
+     
 
     // Attempt withdrawal
     err = service.Withdraw(ctx, acc.ID, 5_000, "bad withdraw")
@@ -106,16 +103,46 @@ func TestTransfer_Atomicity(t *testing.T) {
         t.Fatalf("❌ Transfer from %s to %s failed: %v", from.Name, to.Name, err)
     }
 
-    fromAcc, _ := accountRepo.GetByID(ctx, from.ID)
-    toAcc, _ := accountRepo.GetByID(ctx, to.ID)
+    fromAcc, _ := service.Balance(ctx, from.ID)
+    toAcc, _ := service.Balance(ctx, to.ID)
 
-    if fromAcc.Balance != 5_000 {
-        t.Fatalf("❌ Sender balance mismatch: expected 5000, got %d", fromAcc.Balance)
+    if fromAcc != 5_000 {
+        t.Fatalf("expected sender balance 5000, got %d", fromAcc)
+
     }
 
-    if toAcc.Balance != 15_000 {
-        t.Fatalf("❌ Receiver balance mismatch: expected 15000, got %d", toAcc.Balance)
+    if toAcc != 15_000 {
+        t.Fatalf("expected reciever balance 15000, got %d", toAcc)
     }
+
+  
 
     t.Logf("✅ Atomic transfer test passed: %s → %s", from.Name, to.Name)
+}
+
+
+
+
+func TestLedgerDerivedBalance(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	accountRepo := account.NewPostgresRepository(db)
+	txRepo := transaction.NewPostgresRepo(db)
+	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+
+	acc, _ := accountRepo.Create(ctx, "Ledger User")
+
+	service.Deposit(ctx, acc.ID, 10_000, "funding")
+	service.Withdraw(ctx, acc.ID, 2_500, "expense")
+	service.Deposit(ctx, acc.ID, 1_000, "refund")
+
+	balance, err := service.Balance(ctx, acc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if balance != 8_500 {
+		t.Fatalf("expected balance 8500, got %d", balance)
+	}
 }

@@ -6,6 +6,8 @@ import (
 	"transaction/internal/infrastructure/database"
 )
 
+var _ TransactionRepository = (*PostgresRepo)(nil)
+
 type PostgresRepo struct {
 	db database.DBTX
 }
@@ -60,4 +62,32 @@ func (r *PostgresRepo) ListByAccount(ctx context.Context, accountID int64) ([]Tr
 	}
 
 	return result, nil
+}
+
+
+func (r *PostgresRepo) BalanceByAccount(ctx context.Context, accountId int64) (int64, error) {
+	var balance int64
+	err := r.db.QueryRowContext(ctx,
+	 `
+	     SELECT COALESCE(SUM(
+		 CASE 
+		     WHEN type IN ($2, $3) THEN amount
+			 WHEN type IN ($4, $5) THEN -amount
+			 ELSE 0
+		 END
+		 ), 0)
+		 FROM transactions
+		 WHERE account_id = $1
+	`,
+	     
+	    accountId,
+		TypeDeposit,
+		TypeTransferIn,
+		TypeWithdraw,
+		TypeTransferOut,
+
+	).Scan(&balance)
+	
+	return  balance, err
+
 }
