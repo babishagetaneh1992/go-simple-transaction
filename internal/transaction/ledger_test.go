@@ -10,6 +10,7 @@ import (
 func TestDeposit_CreatesLedgerEntry(t *testing.T) {
       db := setupTestDB(t)
 	  ctx := context.Background()
+	  key := "abc-123"
 
 	  accountRepo := account.NewPostgresRepository(db)
 	  txRepo := transaction.NewPostgresRepo(db)
@@ -20,7 +21,7 @@ func TestDeposit_CreatesLedgerEntry(t *testing.T) {
 		  t.Fatalf("❌ Failed to create account: %v", err)
 	  }
 
-	  err = service.Deposit(ctx, acc.ID, 5_000, "salary")
+	  err = service.Deposit(ctx, key, acc.ID, 5_000, "salary")
       if err != nil {
 		  t.Fatalf("❌ Deposit failed for account %s: %v", acc.Name, err)
 
@@ -56,13 +57,15 @@ func TestDeposit_CreatesLedgerEntry(t *testing.T) {
 func TestWithdraw_CreatesLedgerEntry(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
+	key := "abc-123"
+	
 
 	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
 	service := transaction.NewTransactionService(db, accountRepo, txRepo)
 
 	acc, _ := accountRepo.Create(ctx, "Bob")
-	service.Deposit(ctx, acc.ID, 10_000, "funding")
+	service.Deposit(ctx, key, acc.ID, 10_000, "funding")
 
 	err := service.Withdraw(ctx, acc.ID, 3_000, "rent")
 	if err != nil {
@@ -86,6 +89,7 @@ func TestWithdraw_CreatesLedgerEntry(t *testing.T) {
 func TestTransfer_CreatesTwoLedgerEntries(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
+	key := "abc-123"
 
 	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
@@ -94,7 +98,7 @@ func TestTransfer_CreatesTwoLedgerEntries(t *testing.T) {
 	from, _ := accountRepo.Create(ctx, "Sender")
 	to, _ := accountRepo.Create(ctx, "Receiver")
 
-	service.Deposit(ctx, from.ID, 20_000, "funding")
+	service.Deposit(ctx, key, from.ID, 20_000, "funding")
 
 	err := service.Transfer(ctx, from.ID, to.ID, 7_000, "payment")
 	if err != nil {

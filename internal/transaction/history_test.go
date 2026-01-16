@@ -10,13 +10,14 @@ import (
 func TestTransactionHistory(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
+	key := "abc-123"
 
 	accountRepo := account.NewPostgresRepository(db)
 	txrepo := transaction.NewPostgresRepo(db)
 	service := transaction.NewTransactionService(db, accountRepo, txrepo)
 
 	acc, _ := accountRepo.Create(ctx, "History User")
-	service.Deposit(ctx, acc.ID, 3_000, "income")
+	service.Deposit(ctx, key, acc.ID, 3_000, "income")
 	service.Withdraw(ctx, acc.ID, 1_000, "expenses")
 
 	history, err := service.History(ctx, acc.ID)

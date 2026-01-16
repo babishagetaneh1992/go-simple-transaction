@@ -11,13 +11,14 @@ import (
 func TestConcurrentWithdraw(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
+    key := "abc-123"
 
 	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
 	service := transaction.NewTransactionService(db, accountRepo, txRepo)
 
 	acc, _ := accountRepo.Create(ctx, "Concurrent User")
-	service.Deposit(ctx, acc.ID, 10_000, "initial")
+	service.Deposit(ctx, key, acc.ID, 10_000, "initial")
 
 	var wg sync.WaitGroup
 	errors := make(chan error, 2)
@@ -56,6 +57,7 @@ func TestConcurrentWithdraw(t *testing.T) {
 func TestConcurrentTransfers(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
+	key := "abc-123"
 
 	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
@@ -64,7 +66,7 @@ func TestConcurrentTransfers(t *testing.T) {
 	from, _ := accountRepo.Create(ctx, "From")
 	to, _ := accountRepo.Create(ctx, "To")
 
-	service.Deposit(ctx, from.ID, 50_000, "fund")
+	service.Deposit(ctx, key, from.ID, 50_000, "fund")
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {

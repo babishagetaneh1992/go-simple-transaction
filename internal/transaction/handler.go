@@ -19,6 +19,8 @@ func NewTransactionHandler(service TransactionService) *TransactionHandler {
 }
 
 func (h *TransactionHandler) Deposit(w http.ResponseWriter, r *http.Request) {
+	
+	key := r.Header.Get("Idempotency-Key")
 	// Implementation of Deposit handler
 	var req struct {
 		AccountID int64  `json:"account_id"`
@@ -37,7 +39,13 @@ func (h *TransactionHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 	}
 
 
-	if err := h.service.Deposit(r.Context(), req.AccountID, req.Amount, req.Note); err != nil {
+	if err := h.service.Deposit(
+		r.Context(), 
+		key, 
+		req.AccountID, 
+		req.Amount, 
+		req.Note,
+		); err != nil {
 		respondError(w, http.StatusBadRequest, "DEPOSIT_FAILED", err.Error())
 		return
 	}

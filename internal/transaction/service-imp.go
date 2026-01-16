@@ -3,8 +3,11 @@ package transaction
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	//"strings"
+
 	//"runtime/debug"
 	"transaction/internal/account"
 )
@@ -13,6 +16,7 @@ type Service struct {
 	db              *sql.DB
 	accountRepo     account.AccountRepository
 	transactionRepo TransactionRepository
+	idempotencyRepo IdempotencyRepository
 }
 
 func NewTransactionService(
@@ -24,10 +28,15 @@ func NewTransactionService(
 		db:              db,
 		accountRepo:     accountRepo,
 		transactionRepo: transactionRepo,
+		idempotencyRepo: NewPostgresIdempotencyRepo(db),
 	}
 }
 
-func (s *Service) Deposit(ctx context.Context, accountID int64, amount int64, note string) error {
+func (s *Service) Deposit(ctx context.Context, idempotencyKey string, accountID int64, amount int64, note string) error {
+
+	
+
+
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
@@ -41,6 +50,18 @@ func (s *Service) Deposit(ctx context.Context, accountID int64, amount int64, no
 
 	accountRepo := account.NewPostgresRepository(tx)
 	transactionRepo := NewPostgresRepo(tx)
+	idemRepo:= NewPostgresIdempotencyRepo(tx)
+
+
+	// try inset first
+	inserted, err := idemRepo.TryInsert(ctx, idempotencyKey, "deposit")
+	if err != nil {
+		return  err
+	}
+
+	if !inserted {
+		return nil// already proccesed
+	}
 
 	_, err = accountRepo.LockByID(ctx, accountID)
 	if err != nil {
@@ -67,10 +88,22 @@ func (s *Service) Deposit(ctx context.Context, accountID int64, amount int64, no
 		Note:      note,
 	}); err != nil {
 		return err
+	
 	}
+
+	// save idempotency record
+	if idempotencyKey != "" {
+		resp, _ := json.Marshal(map[string] string{"status":"ok"})
+		if err := idemRepo.Save(ctx, idempotencyKey, "deposit", resp); err != nil {
+			return err
+		}
+	}
+
 	return tx.Commit()
 
 }
+
+
 
 func (s *Service) Withdraw(ctx context.Context, accountID int64, amount int64, note string) error {
 	if amount <= 0 {
