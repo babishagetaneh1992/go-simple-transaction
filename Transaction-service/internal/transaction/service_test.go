@@ -4,22 +4,54 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"testing"
 	"transaction/internal/account"
 	"transaction/internal/transaction"
+
+	// "transaction/Transaction-service/internal/account"
+	// "transaction/Transaction-service/internal/transaction"
+
+	//"transaction/internal/account"
+	//"transaction/internal/transaction"
 
 	"github.com/joho/godotenv"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {
 	_ = godotenv.Load("../../.env")
-	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	rawURL := os.Getenv("DATABASE_URL")
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("Invalid DATABASE_URL: %v", err)
+	}
+
+	// Force usage of transaction_test database for tests
+	u.Path = "/transaction_test"
+
+	db, err := sql.Open("postgres", u.String())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	db.Exec(`
+CREATE TABLE IF NOT EXISTS accounts (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+    id BIGSERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('DEPOSIT', 'WITHDRAW', 'TRANSFER_IN', 'TRANSFER_OUT')),
+    amount BIGINT NOT NULL CHECK (amount > 0),
+    note TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS idempotency_keys (
     key TEXT PRIMARY KEY,
     operation TEXT NOT NULL,
