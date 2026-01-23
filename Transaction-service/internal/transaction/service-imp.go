@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"transaction/internal/account"
+
+	"github.com/google/uuid"
 	//"transaction/Transaction-service/internal/account"
 	//"strings"
 	//"runtime/debug"
@@ -52,9 +54,12 @@ func (s *Service) Deposit(ctx context.Context, idempotencyKey string, accountID 
 	accountRepo := account.NewPostgresRepository(tx)
 	transactionRepo := NewPostgresRepo(tx)
 	idemRepo:= NewPostgresIdempotencyRepo(tx)
+	outboxRepo := NewPostgresOutboxRepository(tx)
 
 
-	// try inset first
+
+	// try insert first
+	if idempotencyKey != ""{
 	inserted, err := idemRepo.TryInsert(ctx, idempotencyKey, "deposit")
 	if err != nil {
 		return  err
@@ -63,6 +68,7 @@ func (s *Service) Deposit(ctx context.Context, idempotencyKey string, accountID 
 	if !inserted {
 		return nil// already proccesed
 	}
+  }
 
 	_, err = accountRepo.LockByID(ctx, accountID)
 	if err != nil {
@@ -91,6 +97,33 @@ func (s *Service) Deposit(ctx context.Context, idempotencyKey string, accountID 
 		return err
 	
 	}
+
+	payload := map[string]interface{}{
+	"account_id": accountID,
+	"amount":     amount,
+	"type":       "deposit",
+	"note":       note,
+}
+
+payloadJSON, err := json.Marshal(payload)
+if err != nil {
+	return err
+}
+
+
+	event := OutboxEvent {
+		ID:      uuid.New(),
+		AggregateType : "account",
+		AggregateID: accountID,
+		EventType: "transaction.created",
+		Payload: payloadJSON,
+	}
+
+
+	if err := outboxRepo.Add(ctx, &event); err != nil {
+		return  err
+	} 
+
 
 	// save idempotency record
 	if idempotencyKey != "" {
