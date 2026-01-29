@@ -3,75 +3,61 @@ package transaction_test
 import (
 	"context"
 	"testing"
-	"transaction/internal/account"
 	"transaction/internal/transaction"
-	// "transaction/Transaction-service/internal/account"
-	// "transaction/Transaction-service/internal/transaction"
-	//"transaction/internal/account"
-	//"transaction/internal/transaction"
 )
 
 func TestDeposit_CreatesLedgerEntry(t *testing.T) {
-      db := setupTestDB(t)
-	  ctx := context.Background()
-	  key := "abc-123"
+	db := setupTestDB(t)
+	ctx := context.Background()
+	key := "abc-123"
 
-	  accountRepo := account.NewPostgresRepository(db)
-	  txRepo := transaction.NewPostgresRepo(db)
-	  service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	txRepo := transaction.NewPostgresRepo(db)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	  acc, err := accountRepo.Create(ctx, "Charlie")
-	  if err != nil {
-		  t.Fatalf("❌ Failed to create account: %v", err)
-	  }
+	acc := createTestAccount(t, db, "Charlie")
+	var err error
 
-	  err = service.Deposit(ctx, key, acc.ID, 5_000, "salary")
-      if err != nil {
-		  t.Fatalf("❌ Deposit failed for account %s: %v", acc.Name, err)
+	err = service.Deposit(ctx, key, acc.ID, 5_000, "salary")
+	if err != nil {
+		t.Fatalf("❌ Deposit failed for account %s: %v", acc.Name, err)
 
-	  }
+	}
 
-	  entries, err := txRepo.ListByAccount(ctx, acc.ID)
-	  if err != nil {
-		  t.Fatalf("❌ Could not list transactions for account %s: %v", acc.Name, err)
+	entries, err := txRepo.ListByAccount(ctx, acc.ID)
+	if err != nil {
+		t.Fatalf("❌ Could not list transactions for account %s: %v", acc.Name, err)
 
-	  }
+	}
 
-	  if len(entries) != 1 {
-		  t.Fatalf("❌ Expected 1 ledger entry, got %d for account %s", len(entries), acc.Name)
+	if len(entries) != 1 {
+		t.Fatalf("❌ Expected 1 ledger entry, got %d for account %s", len(entries), acc.Name)
 
-	  }
+	}
 
-	  entry := entries[0]
-	  
-	  if entry.Type != transaction.TypeDeposit {
+	entry := entries[0]
+
+	if entry.Type != transaction.TypeDeposit {
 		t.Fatalf("❌ expected DEPOSIT, got %s", entry.Type)
-	  }
+	}
 
-	  if entry.Amount != 5_000 {
+	if entry.Amount != 5_000 {
 		t.Fatalf("expected amount 5000, got %d", entry.Amount)
-	  }
-
-
+	}
 
 }
-
-
 
 func TestWithdraw_CreatesLedgerEntry(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	key := "abc-123"
-	
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	acc, _ := accountRepo.Create(ctx, "Bob")
+	acc := createTestAccount(t, db, "Bob")
 	service.Deposit(ctx, key, acc.ID, 10_000, "funding")
 
-	err := service.Withdraw(ctx, acc.ID, 3_000, "rent")
+	err := service.Withdraw(ctx, key, acc.ID, 3_000, "rent")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,20 +73,16 @@ func TestWithdraw_CreatesLedgerEntry(t *testing.T) {
 	}
 }
 
-
-
-
 func TestTransfer_CreatesTwoLedgerEntries(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	from, _ := accountRepo.Create(ctx, "Sender")
-	to, _ := accountRepo.Create(ctx, "Receiver")
+	from := createTestAccount(t, db, "Sender")
+	to := createTestAccount(t, db, "Receiver")
 
 	service.Deposit(ctx, key, from.ID, 20_000, "funding")
 

@@ -19,7 +19,7 @@ func NewTransactionHandler(service TransactionService) *TransactionHandler {
 }
 
 func (h *TransactionHandler) Deposit(w http.ResponseWriter, r *http.Request) {
-	
+
 	key := r.Header.Get("Idempotency-Key")
 	// Implementation of Deposit handler
 	var req struct {
@@ -38,14 +38,13 @@ func (h *TransactionHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	if err := h.service.Deposit(
-		r.Context(), 
-		key, 
-		req.AccountID, 
-		req.Amount, 
+		r.Context(),
+		key,
+		req.AccountID,
+		req.Amount,
 		req.Note,
-		); err != nil {
+	); err != nil {
 		respondError(w, http.StatusBadRequest, "DEPOSIT_FAILED", err.Error())
 		return
 	}
@@ -55,8 +54,6 @@ func (h *TransactionHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 		Message: "Deposit completed successfully",
 	})
 }
-
-
 
 func (h *TransactionHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -75,7 +72,9 @@ func (h *TransactionHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Withdraw(r.Context(), req.AccountID, req.Amount, req.Note); err != nil {
+	key := r.Header.Get("Idempotency-Key")
+
+	if err := h.service.Withdraw(r.Context(), key, req.AccountID, req.Amount, req.Note); err != nil {
 		code := "WITHDRAW_FAILED"
 		if err.Error() == "insufficient funds" {
 			code = "INSUFFICIENT_FUNDS"
@@ -89,9 +88,6 @@ func (h *TransactionHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		Message: "Withdrawal completed successfully",
 	})
 }
-
-
-
 
 func (h *TransactionHandler) Transfer(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -133,9 +129,6 @@ func (h *TransactionHandler) Transfer(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
-
-
 func (h *TransactionHandler) History(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -156,21 +149,15 @@ func (h *TransactionHandler) History(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
-
-
-
-
 func (h *TransactionHandler) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/deposit", h.Deposit)
 	r.Post("/withdraw", h.Withdraw)
 	r.Post("/transfer", h.Transfer)
-	r.Get("/history/{id}",h.History )
-    r.Get("/{id}/balance", h.Balance)
+	r.Get("/history/{id}", h.History)
+	r.Get("/{id}/balance", h.Balance)
 	return r
 }
-
 
 func (h *TransactionHandler) Balance(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -189,14 +176,6 @@ func (h *TransactionHandler) Balance(w http.ResponseWriter, r *http.Request) {
 		"balance": balance,
 	})
 }
-
-
-
-
-
-
-
-
 
 type SuccessResponse struct {
 	Status  string      `json:"status"`

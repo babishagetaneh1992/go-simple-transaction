@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
-func NewRouter(accountHandler http.Handler, transactionHandler http.Handler) http.Handler {
+func NewRouter (transactionHandler http.Handler) http.Handler {
 
 	r := chi.NewRouter()
 
@@ -15,7 +15,7 @@ func NewRouter(accountHandler http.Handler, transactionHandler http.Handler) htt
 	r.Use(middleware.Recoverer)
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Mount("/accounts", accountHandler)
+		//r.Mount("/accounts", accountHandler)
 		r.Mount("/transactions", transactionHandler)
 	})
 

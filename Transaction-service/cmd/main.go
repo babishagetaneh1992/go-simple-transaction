@@ -1,15 +1,17 @@
 package main
 
 import (
-	"context"
+	//"context"
 	"log"
 	"net/http"
 	"os"
+
 	//"strings"
-	"transaction/internal/account"
+	//"transaction/internal/account"
 	"transaction/internal/infrastructure/database"
-	"transaction/internal/infrastructure/kafka"
+	//"transaction/internal/infrastructure/kafka"
 	"transaction/internal/transaction"
+	"transaction/pb"
 
 	//"transaction/Transaction-service/internal/infrastructure/database"
 
@@ -20,6 +22,7 @@ import (
 	httpinfra "transaction/internal/infrastructure/http"
 
 	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -34,38 +37,66 @@ func main() {
 		log.Fatal(err)
 	}
 
-	accountRepo := account.NewPostgresRepository(db)
+
+	// grpc connection
+	accountConn, err := grpc.Dial(
+		os.Getenv("ACCOUNT_SERVICE_GRPC_ADDR"),
+		grpc.WithInsecure(),
+	)
+	if  err != nil {
+		log.Fatal("failed to connect to account service:", err)
+	}
+
+	defer accountConn.Close()
+
+	accountClient := pb.NewAccountServiceClient(accountConn)
+
+
+	//accountRepo := account.NewPostgresRepository(db)
 	transactionRepo := transaction.NewPostgresRepo(db)
 
-	transactionService := transaction.NewTransactionService(db, accountRepo, transactionRepo)
+	
 	//transactionHandler := transaction.NewTransactionHandler(transactionService)
-	transactionHandler := transaction.NewTransactionHandler(transactionService)
+	
 
-	accountHandler := account.NewAccountHandler(accountRepo, transactionHandler.Balance)
+	//accountHandler := account.NewAccountHandler(accountRepo, transactionHandler.Balance)
 
-	outboxRepo := transaction.NewPostgresOutboxRepository(db)
+	//outboxRepo := transaction.NewPostgresOutboxRepository(db)
 	//publisher := transaction.NewLogPublisher()
-	producer := kafka.NewProducer([]string{"localhost:9092"})
-	worker := transaction.NewWorker(
-		outboxRepo,
-		producer,
-		"transaction.events",
-	)
+
+
+	//services
+	transactionService := transaction.NewTransactionService(
+		db, 
+		accountClient,
+		transactionRepo,
+		
+	 )
+
+	 transactionHandler := transaction.NewTransactionHandler(transactionService)
+
+
+	// producer := kafka.NewProducer([]string{"localhost:9092"})
+	// worker := transaction.NewWorker(
+	// 	outboxRepo,
+	// 	producer,
+	// 	"transaction.events",
+	// )
 
 
 
 	router := httpinfra.NewRouter(
-		accountHandler.Routes(),
+		//accountHandler.Routes(),
 		transactionHandler.Routes(),
 	)
 
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
 
-	go worker.Start(ctx)
+	// go worker.Start(ctx)
 
-	log.Println("Server running on :8080")
+	log.Println("🚀 Transaction Service running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
 
 

@@ -4,24 +4,18 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"transaction/internal/account"
 	"transaction/internal/transaction"
-	// "transaction/Transaction-service/internal/account"
-	// "transaction/Transaction-service/internal/transaction"
-	//"transaction/internal/account"
-	//"transaction/internal/transaction"
 )
 
 func TestConcurrentWithdraw(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
-    key := "abc-123"
+	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	acc, _ := accountRepo.Create(ctx, "Concurrent User")
+	acc := createTestAccount(t, db, "Concurrent User")
 	service.Deposit(ctx, key, acc.ID, 10_000, "initial")
 
 	var wg sync.WaitGroup
@@ -29,7 +23,7 @@ func TestConcurrentWithdraw(t *testing.T) {
 
 	withdraw := func() {
 		defer wg.Done()
-		err := service.Withdraw(ctx, acc.ID, 8_000, "race")
+		err := service.Withdraw(ctx, key, acc.ID, 8_000, "race")
 		errors <- err
 	}
 
@@ -55,20 +49,16 @@ func TestConcurrentWithdraw(t *testing.T) {
 	}
 }
 
-
-
-
 func TestConcurrentTransfers(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	from, _ := accountRepo.Create(ctx, "From")
-	to, _ := accountRepo.Create(ctx, "To")
+	from := createTestAccount(t, db, "From")
+	to := createTestAccount(t, db, "To")
 
 	service.Deposit(ctx, key, from.ID, 50_000, "fund")
 

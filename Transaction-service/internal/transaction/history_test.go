@@ -3,12 +3,7 @@ package transaction_test
 import (
 	"context"
 	"testing"
-	"transaction/internal/account"
 	"transaction/internal/transaction"
-	// "transaction/Transaction-service/internal/account"
-	// "transaction/Transaction-service/internal/transaction"
-	//"transaction/internal/account"
-	//"transaction/internal/transaction"
 )
 
 func TestTransactionHistory(t *testing.T) {
@@ -16,13 +11,12 @@ func TestTransactionHistory(t *testing.T) {
 	ctx := context.Background()
 	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txrepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txrepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txrepo)
 
-	acc, _ := accountRepo.Create(ctx, "History User")
+	acc := createTestAccount(t, db, "History User")
 	service.Deposit(ctx, key, acc.ID, 3_000, "income")
-	service.Withdraw(ctx, acc.ID, 1_000, "expenses")
+	service.Withdraw(ctx, key, acc.ID, 1_000, "expenses")
 
 	history, err := service.History(ctx, acc.ID)
 	if err != nil {

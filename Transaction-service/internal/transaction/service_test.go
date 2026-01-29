@@ -7,14 +7,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
-	"transaction/internal/account"
 	"transaction/internal/transaction"
-
-	// "transaction/Transaction-service/internal/account"
-	// "transaction/Transaction-service/internal/transaction"
-
-	//"transaction/internal/account"
-	//"transaction/internal/transaction"
 
 	"github.com/joho/godotenv"
 )
@@ -90,14 +83,11 @@ func TestDeposit_IncreasesBalance(t *testing.T) {
 	ctx := context.Background()
 	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	acc, err := accountRepo.Create(ctx, "Alice")
-	if err != nil {
-		t.Fatalf("❌ Failed to create account: %v", err)
-	}
+	acc := createTestAccount(t, db, "Alice")
+	var err error
 	t.Logf("👤 Created account: %s", acc.Name)
 
 	t.Run("Perform Deposit", func(t *testing.T) {
@@ -117,21 +107,19 @@ func TestDeposit_IncreasesBalance(t *testing.T) {
 func TestWithdraw_InsufficientFunds(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
+	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	acc, err := accountRepo.Create(ctx, "Bob")
-	if err != nil {
-		t.Fatalf("❌ Failed to create account: %v", err)
-	}
+	acc := createTestAccount(t, db, "Bob")
+	var err error
 	t.Logf("👤 Created account: %s", acc.Name)
 
 	t.Run("Attempt Overdraft", func(t *testing.T) {
 		amount := int64(5_000)
 		t.Logf("💸 Attempting to withdraw %s from empty account...", formatMoney(amount))
-		err = service.Withdraw(ctx, acc.ID, amount, "bad withdraw")
+		err = service.Withdraw(ctx, key, acc.ID, amount, "bad withdraw")
 		if err == nil {
 			t.Fatalf("❌ Withdraw succeeded but should have failed due to insufficient funds")
 		}
@@ -144,12 +132,11 @@ func TestTransfer_Atomicity(t *testing.T) {
 	ctx := context.Background()
 	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	from, _ := accountRepo.Create(ctx, "Sender")
-	to, _ := accountRepo.Create(ctx, "Receiver")
+	from := createTestAccount(t, db, "Sender")
+	to := createTestAccount(t, db, "Receiver")
 	t.Logf("👤 Created accounts: %s -> %s", from.Name, to.Name)
 
 	t.Run("Setup Initial Funds", func(t *testing.T) {
@@ -180,11 +167,10 @@ func TestLedgerDerivedBalance(t *testing.T) {
 	ctx := context.Background()
 	key := "abc-123"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	acc, _ := accountRepo.Create(ctx, "Ledger User")
+	acc := createTestAccount(t, db, "Ledger User")
 	t.Logf("👤 Created account: %s", acc.Name)
 
 	t.Run("Perform Multiple Transactions", func(t *testing.T) {
@@ -193,7 +179,7 @@ func TestLedgerDerivedBalance(t *testing.T) {
 			action func() error
 		}{
 			{"Deposit 100.00", func() error { return service.Deposit(ctx, key, acc.ID, 10_000, "funding") }},
-			{"Withdraw 25.00", func() error { return service.Withdraw(ctx, acc.ID, 2_500, "expense") }},
+			{"Withdraw 25.00", func() error { return service.Withdraw(ctx, key, acc.ID, 2_500, "expense") }},
 			{"Deposit 10.00", func() error { return service.Deposit(ctx, key+"-2", acc.ID, 1_000, "refund") }},
 		}
 
@@ -216,11 +202,10 @@ func TestDeposit_Idempotent(t *testing.T) {
 	ctx := context.Background()
 	key := "abc-idempotent"
 
-	accountRepo := account.NewPostgresRepository(db)
 	txRepo := transaction.NewPostgresRepo(db)
-	service := transaction.NewTransactionService(db, accountRepo, txRepo)
+	service := transaction.NewTransactionService(db, &MockAccountClient{}, txRepo)
 
-	acc, _ := accountRepo.Create(ctx, "Idempotent User")
+	acc := createTestAccount(t, db, "Idempotent User")
 
 	t.Run("First Deposit", func(t *testing.T) {
 		t.Log("1️⃣ Performing first deposit...")
