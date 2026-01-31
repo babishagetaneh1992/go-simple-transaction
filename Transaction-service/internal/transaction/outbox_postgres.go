@@ -67,8 +67,9 @@ func (r *PostgresOutboxRepository) FetchPending(ctx context.Context, limit int) 
 			&e.AggregateID,
 			&e.AggregateType,
 			&e.EventType,
-			&e.Status,
 			&e.Payload,
+			&e.Status,
+			
 			//&e.CreatedAt,
 		)
 

@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"context"
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -9,7 +9,7 @@ import (
 	//"strings"
 	//"transaction/internal/account"
 	"transaction/internal/infrastructure/database"
-	//"transaction/internal/infrastructure/kafka"
+	"transaction/internal/infrastructure/kafka"
 	"transaction/internal/transaction"
 	"transaction/pb"
 
@@ -61,7 +61,7 @@ func main() {
 
 	//accountHandler := account.NewAccountHandler(accountRepo, transactionHandler.Balance)
 
-	//outboxRepo := transaction.NewPostgresOutboxRepository(db)
+	outboxRepo := transaction.NewPostgresOutboxRepository(db)
 	//publisher := transaction.NewLogPublisher()
 
 
@@ -76,12 +76,12 @@ func main() {
 	 transactionHandler := transaction.NewTransactionHandler(transactionService)
 
 
-	// producer := kafka.NewProducer([]string{"localhost:9092"})
-	// worker := transaction.NewWorker(
-	// 	outboxRepo,
-	// 	producer,
-	// 	"transaction.events",
-	// )
+	producer := kafka.NewProducer([]string{"localhost:9092"})
+	worker := transaction.NewWorker(
+		outboxRepo,
+		producer,
+		"transaction.events",
+	)
 
 
 
@@ -91,10 +91,10 @@ func main() {
 	)
 
 
-	// ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// go worker.Start(ctx)
+	go worker.Start(ctx)
 
 	log.Println("🚀 Transaction Service running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
